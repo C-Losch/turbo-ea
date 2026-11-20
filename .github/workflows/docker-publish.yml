@@ -43,6 +43,11 @@ jobs:
         image: [db, backend, frontend, nginx, mcp-server]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # GHCR requires lowercase image references; github.repository preserves owner casing.
+      - name: Normalize image repository
+        id: image
+        shell: bash
+        run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -61,7 +66,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          images: ${{ steps.image.outputs.repository }}/${{ matrix.image }}
           # `latest=auto` only retags `:latest` on push-to-default-branch and
           # semver-tag events — NOT on workflow_dispatch. That meant manual
           # rebuilds (e.g. the apk-upgrade republishes we run to pull fresh
@@ -154,7 +159,7 @@ jobs:
 
       - name: Sign image
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          IMAGE: ${{ steps.image.outputs.repository }}/${{ matrix.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE}@${DIGEST}"
 
@@ -169,7 +174,7 @@ jobs:
 
       - name: Verify signature with the documented minimum client
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          IMAGE: ${{ steps.image.outputs.repository }}/${{ matrix.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
           IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/docker-publish.yml@${{ github.ref }}
         run: |
@@ -195,7 +200,7 @@ jobs:
       - name: Trivy image scan (observe, HIGH + CRITICAL)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.image.outputs.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: HIGH,CRITICAL
@@ -220,7 +225,7 @@ jobs:
       - name: Trivy image scan (gate, CRITICAL only)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.image.outputs.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: table
           severity: CRITICAL
           exit-code: "1"
@@ -243,7 +248,7 @@ jobs:
         uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
         with:
           command: cves
-          image: ghcr.io/${{ github.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image: ${{ steps.image.outputs.repository }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           only-severities: critical,high
           sarif-file: scout-${{ matrix.image }}.sarif
           exit-code: false
