@@ -356,11 +356,21 @@ function compareCapabilities(a: CapNode, b: CapNode): number {
   return a.name.localeCompare(b.name);
 }
 
-function capabilityHeadingColor(node: CapNode): string | null {
+function capabilityHeadingColor(node: CapNode, schema: SectionDef[]): string | null {
   const value = node.attributes?.mapHeadingColor;
-  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim())
-    ? value.trim()
-    : null;
+  if (typeof value !== "string") return null;
+
+  // Single-select attributes store the option key; the option's colour is
+  // held separately in the BusinessCapability field schema.
+  const directColor = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(directColor)) return directColor;
+
+  const field = schema
+    .flatMap((section) => section.fields)
+    .find((item) => item.key === "mapHeadingColor");
+  const option = field?.options?.find((item) => item.key === value);
+  const optionColor = option?.color?.trim();
+  return optionColor && /^#[0-9a-f]{6}$/i.test(optionColor) ? optionColor : null;
 }
 
 function buildTree(
@@ -579,6 +589,7 @@ function CapabilityCard({
   pulsing,
   pulsedCaps,
   fillCardWithHeadingColor,
+  capabilityFieldsSchema,
 }: {
   node: CapNode;
   displayLevel: number;
@@ -604,6 +615,7 @@ function CapabilityCard({
    *  would read as a data change. */
   pulsedCaps: Map<string, ContainerPulseKind>;
   fillCardWithHeadingColor: boolean;
+  capabilityFieldsSchema: SectionDef[];
 }) {
   const { t } = useTranslation(["reports"]);
   const val = nodeMetric(node, metric);
@@ -616,7 +628,7 @@ function CapabilityCard({
     [node, displayLevel],
   );
 
-  const headingColor = capabilityHeadingColor(node);
+  const headingColor = capabilityHeadingColor(node, capabilityFieldsSchema);
   const headingTextColor = headingColor
     ? (readableTextColor(headingColor) === CHART_LABEL_ON_DARK ? "common.white" : SCREEN_INK.onLightFill)
     : undefined;
@@ -809,6 +821,7 @@ function CapabilityCard({
               pulsing={pulsing}
               pulsedCaps={pulsedCaps}
               fillCardWithHeadingColor={fillCardWithHeadingColor}
+              capabilityFieldsSchema={capabilityFieldsSchema}
             />
           </Box>
         ))}
@@ -826,6 +839,8 @@ export default function CapabilityMapReport() {
   const { fmtShort } = useCurrency();
   const { formatDate } = useDateFormat();
   const { types: metamodelTypes } = useMetamodel();
+  const capabilityFieldsSchema =
+    metamodelTypes.find((type) => type.key === "BusinessCapability")?.fields_schema ?? [];
   const typeLabel = useTypeLabel();
   const relLabel = useRelationLabel();
   const fieldLabel = useFieldLabel();
@@ -1800,6 +1815,7 @@ export default function CapabilityMapReport() {
                 pulsing={pulsing}
                 pulsedCaps={pulsedCaps}
                 fillCardWithHeadingColor={fillCardWithHeadingColor}
+                capabilityFieldsSchema={capabilityFieldsSchema}
               />
             </Box>
           ))}
