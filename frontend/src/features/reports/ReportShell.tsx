@@ -384,7 +384,7 @@ export default function ReportShell({
           className="report-legend"
           sx={{
             position: "fixed",
-            zIndex: (theme) => theme.zIndex.drawer + 1,
+            zIndex: (theme) => theme.zIndex.appBar + 1,
             ...(legendPosition === "bottom" && { bottom: 16, left: "50%", transform: "translateX(-50%)" }),
             ...(legendPosition === "top" && { top: 16, left: "50%", transform: "translateX(-50%)" }),
             ...(legendPosition === "left" && { left: 16, top: "50%", transform: "translateY(-50%)" }),
@@ -394,7 +394,7 @@ export default function ReportShell({
             alignItems: "center",
             gap: 1.5,
             flexWrap: "wrap",
-            maxWidth: "min(92vw, 900px)",
+            maxWidth: legendPosition === "left" || legendPosition === "right" ? "min(88vw, 280px)" : "min(92vw, 900px)",
             maxHeight: "80vh",
             overflow: "auto",
             p: 1.5,
@@ -403,6 +403,19 @@ export default function ReportShell({
             borderRadius: 2,
             bgcolor: "background.paper",
             boxShadow: 6,
+            "& > .MuiBox-root": {
+              flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row",
+              alignItems: legendPosition === "left" || legendPosition === "right" ? "flex-start" : "center",
+            },
+            "@media print": {
+              position: "static",
+              transform: "none",
+              maxWidth: "none",
+              maxHeight: "none",
+              overflow: "visible",
+              boxShadow: "none",
+              mt: 2,
+            },
           }}
         >
           {legend}
