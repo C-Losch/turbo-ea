@@ -358,7 +358,7 @@ function compareCapabilities(a: CapNode, b: CapNode): number {
 
 function capabilityHeadingColor(node: CapNode): string | null {
   const value = node.attributes?.mapHeadingColor;
-  return typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value.trim())
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim())
     ? value.trim()
     : null;
 }
