@@ -40,8 +40,9 @@ export interface ReportShellProps {
   iconColor?: string;
   /** Filter toolbar rendered below title row */
   toolbar?: ReactNode;
-  /** Legend rendered below visualization */
+  /** Legend rendered in a fixed viewport panel at the selected edge */
   legend?: ReactNode;
+  legendPosition?: "bottom" | "top" | "left" | "right";
   /** Whether to show chart/table toggle (default true) */
   hasTableToggle?: boolean;
   view?: "chart" | "table";
@@ -101,6 +102,7 @@ export default function ReportShell({
   iconColor = brand.primary,
   toolbar,
   legend,
+  legendPosition = "bottom",
   hasTableToggle = true,
   view = "chart",
   onViewChange,
@@ -378,7 +380,31 @@ export default function ReportShell({
 
       {/* Legend */}
       {legend && (
-        <Box className="report-legend" sx={{ mt: 2, display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+        <Box
+          className="report-legend"
+          sx={{
+            position: "fixed",
+            zIndex: (theme) => theme.zIndex.drawer + 1,
+            ...(legendPosition === "bottom" && { bottom: 16, left: "50%", transform: "translateX(-50%)" }),
+            ...(legendPosition === "top" && { top: 16, left: "50%", transform: "translateX(-50%)" }),
+            ...(legendPosition === "left" && { left: 16, top: "50%", transform: "translateY(-50%)" }),
+            ...(legendPosition === "right" && { right: 16, top: "50%", transform: "translateY(-50%)" }),
+            display: "flex",
+            flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            maxWidth: "min(92vw, 900px)",
+            maxHeight: "80vh",
+            overflow: "auto",
+            p: 1.5,
+            border: 1,
+            borderColor: "divider",
+            borderRadius: 2,
+            bgcolor: "background.paper",
+            boxShadow: 6,
+          }}
+        >
           {legend}
         </Box>
       )}
