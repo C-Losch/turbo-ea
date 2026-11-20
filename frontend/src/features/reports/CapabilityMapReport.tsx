@@ -340,6 +340,29 @@ interface CapNode extends CapItem {
   deepRiskCount: number;
 }
 
+function capabilityMapOrder(node: CapItem): number | null {
+  const value = node.attributes?.mapOrder;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function compareCapabilities(a: CapNode, b: CapNode): number {
+  const ao = capabilityMapOrder(a);
+  const bo = capabilityMapOrder(b);
+  if (ao !== null && bo === null) return -1;
+  if (ao === null && bo !== null) return 1;
+  if (ao !== null && bo !== null && ao !== bo) return ao - bo;
+  return a.name.localeCompare(b.name);
+}
+
+function capabilityHeadingColor(node: CapNode): string | null {
+  const value = node.attributes?.mapHeadingColor;
+  return typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value.trim())
+    ? value.trim()
+    : null;
+}
+
 function buildTree(
   items: CapItem[],
   attrFilters: Record<string, string[]>,
@@ -402,11 +425,11 @@ function buildTree(
   function setLevel(nodes: CapNode[], lvl: number) {
     for (const n of nodes) {
       n.level = lvl;
-      n.children.sort((a, b) => a.name.localeCompare(b.name));
+      n.children.sort(compareCapabilities);
       setLevel(n.children, lvl + 1);
     }
   }
-  roots.sort((a, b) => a.name.localeCompare(b.name));
+  roots.sort(compareCapabilities);
   const macroRoots = roots.filter((r) => r.attributes?.capabilityLevel === "Macro");
   const nonMacroRoots = roots.filter((r) => r.attributes?.capabilityLevel !== "Macro");
   setLevel(macroRoots, 0);
@@ -555,6 +578,7 @@ function CapabilityCard({
   pulseCards,
   pulsing,
   pulsedCaps,
+  fillCardWithHeadingColor,
 }: {
   node: CapNode;
   displayLevel: number;
@@ -579,6 +603,7 @@ function CapabilityCard({
    *  Applications off) — a ring only, never a dim: dimming a heatmap box
    *  would read as a data change. */
   pulsedCaps: Map<string, ContainerPulseKind>;
+  fillCardWithHeadingColor: boolean;
 }) {
   const { t } = useTranslation(["reports"]);
   const val = nodeMetric(node, metric);
@@ -591,6 +616,10 @@ function CapabilityCard({
     [node, displayLevel],
   );
 
+  const headingColor = capabilityHeadingColor(node);
+  const headingTextColor = headingColor
+    ? (readableTextColor(headingColor) === CHART_LABEL_ON_DARK ? "common.white" : SCREEN_INK.onLightFill)
+    : undefined;
   const boxPulse = pulsedCaps.get(node.id);
   const boxPulseSx = boxPulse
     ? {
@@ -610,7 +639,7 @@ function CapabilityCard({
           borderColor: "divider",
           borderRadius: 2,
           overflow: "hidden",
-          bgcolor: "background.paper",
+          bgcolor: fillCardWithHeadingColor && headingColor ? headingColor : "background.paper",
           cursor: "pointer",
           transition: "box-shadow 0.2s",
           "&:hover": { boxShadow: 3 },
@@ -621,7 +650,7 @@ function CapabilityCard({
         <Box
           sx={{
             p: 1.5,
-            bgcolor: heatColor(val, minVal, maxVal, metric),
+            bgcolor: headingColor || heatColor(val, minVal, maxVal, metric),
             borderBottom:
               showApps && visibleApps.length > 0 ? 1 : "none",
             borderColor: "divider",
@@ -637,10 +666,10 @@ function CapabilityCard({
               fontWeight: 700,
               flex: 1,
               minWidth: CARD_TITLE_MIN_WIDTH,
-              color: (theme) =>
+              color: headingTextColor || ((theme) =>
                 heatRatio(val, minVal, maxVal) > 0.7
                   ? theme.palette.common.white
-                  : theme.palette.grey[900],
+                  : theme.palette.grey[900]),
             }}
             noWrap
           >
@@ -690,7 +719,7 @@ function CapabilityCard({
         borderColor: "divider",
         borderRadius: 2,
         overflow: "hidden",
-        bgcolor: "background.paper",
+        bgcolor: fillCardWithHeadingColor && headingColor ? headingColor : "background.paper",
         ...boxPulseSx,
       }}
     >
@@ -698,7 +727,7 @@ function CapabilityCard({
       <Box
         sx={{
           p: 1.5,
-          bgcolor: heatColor(val, minVal, maxVal, metric),
+          bgcolor: headingColor || heatColor(val, minVal, maxVal, metric),
           borderBottom: 1,
           borderColor: "divider",
           display: "flex",
@@ -716,10 +745,10 @@ function CapabilityCard({
             fontWeight: 700,
             flex: 1,
             minWidth: CARD_TITLE_MIN_WIDTH,
-            color: (theme) =>
+            color: headingTextColor || ((theme) =>
               heatRatio(val, minVal, maxVal) > 0.7
                 ? theme.palette.common.white
-                : theme.palette.grey[900],
+                : theme.palette.grey[900]),
           }}
           noWrap
         >
@@ -779,6 +808,7 @@ function CapabilityCard({
               pulseCards={pulseCards}
               pulsing={pulsing}
               pulsedCaps={pulsedCaps}
+              fillCardWithHeadingColor={fillCardWithHeadingColor}
             />
           </Box>
         ))}
@@ -831,6 +861,8 @@ export default function CapabilityMapReport() {
   const [columns, setColumns] = useState<ColumnCount>(DEFAULT_COLUMNS);
   const [showApps, setShowApps] = useState(false);
   const [colorBy, setColorBy] = useState("");
+  const [fillCardWithHeadingColor, setFillCardWithHeadingColor] = useState(false);
+  const [legendPosition, setLegendPosition] = useState<"bottom" | "top" | "left" | "right">("bottom");
   // Timeline slider
   const tl = useTimeline();
 
@@ -861,6 +893,8 @@ export default function CapabilityMapReport() {
       if (isColumnCount(cfg.columns)) setColumns(cfg.columns);
       if (cfg.showApps != null) setShowApps(cfg.showApps as boolean);
       if (cfg.colorBy != null) setColorBy(cfg.colorBy as string);
+      if (cfg.fillCardWithHeadingColor != null) setFillCardWithHeadingColor(!!cfg.fillCardWithHeadingColor);
+      if (["bottom", "top", "left", "right"].includes(cfg.legendPosition as string)) setLegendPosition(cfg.legendPosition as "bottom" | "top" | "left" | "right");
       if (Array.isArray(cfg.scopeIds)) {
         setScopeIds((cfg.scopeIds as unknown[]).filter((v): v is string => typeof v === "string"));
       }
@@ -882,12 +916,12 @@ export default function CapabilityMapReport() {
     }
   }, [saved.loadedConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
+  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
 
   // Auto-persist config to localStorage
   useEffect(() => {
     saved.persistConfig(getConfig());
-  }, [metric, attribution, displayLevel, columns, showApps, colorBy, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset all parameters to defaults
   const handleReset = useCallback(() => {
@@ -898,6 +932,8 @@ export default function CapabilityMapReport() {
     setColumns(DEFAULT_COLUMNS);
     setShowApps(false);
     setColorBy("");
+    setFillCardWithHeadingColor(false);
+    setLegendPosition("bottom");
     setScopeIds([]);
     tl.reset();
     setAttrFilters({});
@@ -1353,6 +1389,7 @@ export default function CapabilityMapReport() {
       savedReportName={saved.savedReportName ?? undefined}
       onResetSavedReport={saved.resetSavedReport}
       onReset={handleReset}
+      legendPosition={legendPosition}
       printParams={printParams}
       toolbar={
         <>
@@ -1423,6 +1460,31 @@ export default function CapabilityMapReport() {
             tooltip={t("capabilityMap.scopeTooltip")}
             initialOptions={scopeOptions}
           />
+
+<FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={fillCardWithHeadingColor}
+                onChange={(_, v) => setFillCardWithHeadingColor(v)}
+              />
+            }
+            label={<Typography variant="body2" color="text.secondary">Fill card with heading colour</Typography>}
+          />
+
+          <TextField
+            select
+            size="small"
+            label="Legend position"
+            value={legendPosition}
+            onChange={(e) => setLegendPosition(e.target.value as "bottom" | "top" | "left" | "right")}
+            sx={{ minWidth: 140 }}
+          >
+            <MenuItem value="bottom">Bottom</MenuItem>
+            <MenuItem value="top">Top</MenuItem>
+            <MenuItem value="left">Left</MenuItem>
+            <MenuItem value="right">Right</MenuItem>
+          </TextField>
 
           <FormControlLabel
             control={
@@ -1737,6 +1799,7 @@ export default function CapabilityMapReport() {
                 pulseCards={pulseCards}
                 pulsing={pulsing}
                 pulsedCaps={pulsedCaps}
+                fillCardWithHeadingColor={fillCardWithHeadingColor}
               />
             </Box>
           ))}
