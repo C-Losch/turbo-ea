@@ -188,12 +188,13 @@ export default function ReportShell({
     <Box
       className="report-legend"
       sx={{
-        flex: sideLegend ? "0 0 220px" : "0 1 auto",
-        width: sideLegend ? 220 : "fit-content",
+        flex: sideLegend ? "0 0 176px" : "0 1 auto",
+        width: sideLegend ? 176 : "fit-content",
         maxWidth: "100%",
         minWidth: 0,
         maxHeight: "none",
-        overflow: "visible",
+        overflowX: sideLegend ? "hidden" : "visible",
+        overflowY: "visible",
         display: "flex",
         flexDirection: sideLegend ? "column" : "row",
         alignItems: sideLegend ? "stretch" : "center",
@@ -209,10 +210,12 @@ export default function ReportShell({
         bgcolor: "background.paper",
         boxShadow: 2,
         "& > .MuiBox-root": {
-          width: sideLegend ? "100%" : "auto",
+          width: "100%",
           minWidth: 0,
+          maxWidth: "100%",
+          flexWrap: "wrap",
           flexDirection: sideLegend ? "column" : "row",
-          alignItems: sideLegend ? "flex-start" : "center",
+          alignItems: sideLegend ? "stretch" : "center",
         },
         "@media print": {
           maxWidth: "none",
