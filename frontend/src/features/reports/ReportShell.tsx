@@ -190,6 +190,7 @@ export default function ReportShell({
       sx={{
         flex: sideLegend ? "0 0 220px" : "0 1 auto",
         width: sideLegend ? 220 : "fit-content",
+        mx: sideLegend ? 0 : "auto",
         maxWidth: sideLegend ? "min(28vw, 220px)" : "100%",
         minWidth: sideLegend ? 180 : 0,
         maxHeight: "calc(100vh - 112px)",

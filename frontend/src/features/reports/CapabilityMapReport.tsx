@@ -52,7 +52,7 @@ import {
 } from "./portfolioInventoryLink";
 import { api, isAbortError } from "@/api/client";
 import { useAbortableEffect } from "@/hooks/useLatestRequest";
-import { readableTextColor } from "@/lib/color";
+import { contrastRatio } from "@/lib/color";
 import {
   MULTIPLE_KEY,
   facetBucket,
@@ -66,7 +66,6 @@ import {
 } from "@/lib/fieldFacets";
 import {
   CARD_TYPE_COLORS,
-  CHART_LABEL_ON_DARK,
   EOL_WARNING_COLOR,
   SCREEN_INK,
   STATUS_COLORS,
@@ -641,9 +640,11 @@ function CapabilityCard({
       ? headingColor
       : lighten(inheritedColor, Math.min(0.72, Math.max(0.12, (depth - inheritedColorDepth) * 0.16)))
     : undefined;
-  const headingTextColor = headingColor
-    ? (readableTextColor(headingColor) === CHART_LABEL_ON_DARK ? "common.white" : SCREEN_INK.onLightFill)
-    : undefined;
+  const effectiveHeadingColor = cardFillColor || heatColor(val, minVal, maxVal, metric);
+  const headingTextColor =
+    contrastRatio(effectiveHeadingColor, "#ffffff") >= contrastRatio(effectiveHeadingColor, "#000000")
+      ? "common.white"
+      : SCREEN_INK.onLightFill;
   const boxPulse = pulsedCaps.get(node.id);
   const boxPulseSx = boxPulse
     ? {
@@ -674,7 +675,7 @@ function CapabilityCard({
         <Box
           sx={{
             p: 1.5,
-            bgcolor: headingColor || heatColor(val, minVal, maxVal, metric),
+            bgcolor: effectiveHeadingColor,
             borderBottom:
               showApps && visibleApps.length > 0 ? 1 : "none",
             borderColor: "divider",
@@ -751,7 +752,7 @@ function CapabilityCard({
       <Box
         sx={{
           p: 1.5,
-          bgcolor: headingColor || heatColor(val, minVal, maxVal, metric),
+          bgcolor: effectiveHeadingColor,
           borderBottom: 1,
           borderColor: "divider",
           display: "flex",
