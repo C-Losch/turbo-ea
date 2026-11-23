@@ -2,7 +2,7 @@ name: Publish Docker images to GHCR
 
 on:
   push:
-    branches: [main]
+    branches: [main, work/next-batch]
     tags: ["v*.*.*"]
   workflow_dispatch:
   # Weekly fresh rebuild so apk-package CVEs in the alpine bases are picked
