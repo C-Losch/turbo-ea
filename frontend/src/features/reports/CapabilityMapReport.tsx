@@ -52,7 +52,7 @@ import {
 } from "./portfolioInventoryLink";
 import { api, isAbortError } from "@/api/client";
 import { useAbortableEffect } from "@/hooks/useLatestRequest";
-import { contrastRatio } from "@/lib/color";
+import { contrastRatio, readableTextColor } from "@/lib/color";
 import {
   MULTIPLE_KEY,
   facetBucket,
@@ -66,6 +66,7 @@ import {
 } from "@/lib/fieldFacets";
 import {
   CARD_TYPE_COLORS,
+  CHART_LABEL_ON_DARK,
   EOL_WARNING_COLOR,
   SCREEN_INK,
   STATUS_COLORS,
