@@ -1500,56 +1500,49 @@ export default function CapabilityMapReport() {
 
 
 
-          <ReportFilterSection
-            label="Display options"
-            icon="tune"
-            collapsed={displayOptionsCollapsed}
-            onToggle={() => setDisplayOptionsCollapsed((v) => !v)}
-          >
-            <FormControlLabel
-              control={<Switch size="small" checked={fullWidth} onChange={(_, v) => setFullWidth(v)} />}
-              label={<Typography variant="body2" color="text.secondary">Full width</Typography>}
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={fillCardWithHeadingColor}
-                  onChange={(_, v) => setFillCardWithHeadingColor(v)}
-                />
-              }
-              label={<Typography variant="body2" color="text.secondary">Fill card with heading colour</Typography>}
-            />
-            <TextField
-              select
-              size="small"
-              label="Legend position"
-              value={legendPosition}
-              onChange={(e) => setLegendPosition(e.target.value as "bottom" | "top" | "left" | "right")}
-              sx={{ minWidth: 140 }}
+          {/* Display options occupies its own toolbar row. */}
+          <Box sx={{ width: "100%", flexBasis: "100%" }}>
+            <ReportFilterSection
+              label="Display options"
+              icon="tune"
+              collapsed={displayOptionsCollapsed}
+              onToggle={() => setDisplayOptionsCollapsed((v) => !v)}
             >
-              <MenuItem value="bottom">Bottom</MenuItem>
-              <MenuItem value="top">Top</MenuItem>
-              <MenuItem value="left">Left</MenuItem>
-              <MenuItem value="right">Right</MenuItem>
-            </TextField>
-          </ReportFilterSection>
-
-          <FormControlLabel
-            control={
-              <Switch
-                size="small"
-                checked={showApps}
-                onChange={(_, v) => setShowApps(v)}
+              <FormControlLabel
+                control={<Switch size="small" checked={fullWidth} onChange={(_, v) => setFullWidth(v)} />}
+                label={<Typography variant="body2" color="text.secondary">Full width</Typography>}
               />
-            }
-            label={
-              <Typography variant="body2" color="text.secondary">
-                {t("capabilityMap.showApplications")}
-              </Typography>
-            }
-          />
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={fillCardWithHeadingColor}
+                    onChange={(_, v) => setFillCardWithHeadingColor(v)}
+                  />
+                }
+                label={<Typography variant="body2" color="text.secondary">Fill card with heading colour</Typography>}
+              />
+              <TextField
+                select
+                size="small"
+                label="Legend position"
+                value={legendPosition}
+                onChange={(e) => setLegendPosition(e.target.value as "bottom" | "top" | "left" | "right")}
+                sx={{ minWidth: 140 }}
+              >
+                <MenuItem value="bottom">Bottom</MenuItem>
+                <MenuItem value="top">Top</MenuItem>
+                <MenuItem value="left">Left</MenuItem>
+                <MenuItem value="right">Right</MenuItem>
+              </TextField>
+            </ReportFilterSection>
+          </Box>
 
+          {/* Keep Show applications with the main map controls. */}
+          <FormControlLabel
+            control={<Switch size="small" checked={showApps} onChange={(_, v) => setShowApps(v)} />}
+            label={<Typography variant="body2" color="text.secondary">{t("capabilityMap.showApplications")}</Typography>}
+          />
           {showApps && (
             <TextField
               select
@@ -1561,12 +1554,12 @@ export default function CapabilityMapReport() {
               sx={{ minWidth: 180 }}
             >
               {colorByOptions.map((o) => (
-                <MenuItem key={o.key} value={o.key}>
-                  {o.label}
-                </MenuItem>
+                <MenuItem key={o.key} value={o.key}>{o.label}</MenuItem>
               ))}
             </TextField>
           )}
+
+
 
           {/* Timeline slider */}
           {hasLifecycleData && (
