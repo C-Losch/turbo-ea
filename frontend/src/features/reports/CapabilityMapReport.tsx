@@ -893,6 +893,7 @@ export default function CapabilityMapReport() {
   const [fillCardWithHeadingColor, setFillCardWithHeadingColor] = useState(false);
   const [legendPosition, setLegendPosition] = useState<"bottom" | "top" | "left" | "right">("bottom");
   const [displayOptionsCollapsed, setDisplayOptionsCollapsed] = useState(true);
+  const [fullWidth, setFullWidth] = useState(false);
   // Timeline slider
   const tl = useTimeline();
 
@@ -925,6 +926,7 @@ export default function CapabilityMapReport() {
       if (cfg.colorBy != null) setColorBy(cfg.colorBy as string);
       if (cfg.fillCardWithHeadingColor != null) setFillCardWithHeadingColor(!!cfg.fillCardWithHeadingColor);
       if (cfg.displayOptionsCollapsed != null) setDisplayOptionsCollapsed(!!cfg.displayOptionsCollapsed);
+      if (cfg.fullWidth != null) setFullWidth(!!cfg.fullWidth);
       if (["bottom", "top", "left", "right"].includes(cfg.legendPosition as string)) setLegendPosition(cfg.legendPosition as "bottom" | "top" | "left" | "right");
       if (Array.isArray(cfg.scopeIds)) {
         setScopeIds((cfg.scopeIds as unknown[]).filter((v): v is string => typeof v === "string"));
@@ -947,12 +949,12 @@ export default function CapabilityMapReport() {
     }
   }, [saved.loadedConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
+  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, fullWidth, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
 
   // Auto-persist config to localStorage
   useEffect(() => {
     saved.persistConfig(getConfig());
-  }, [metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, fullWidth, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset all parameters to defaults
   const handleReset = useCallback(() => {
@@ -966,6 +968,7 @@ export default function CapabilityMapReport() {
     setFillCardWithHeadingColor(false);
     setLegendPosition("bottom");
     setDisplayOptionsCollapsed(true);
+    setFullWidth(false);
     setScopeIds([]);
     tl.reset();
     setAttrFilters({});
@@ -1423,6 +1426,7 @@ export default function CapabilityMapReport() {
       onResetSavedReport={saved.resetSavedReport}
       onReset={handleReset}
       legendPosition={legendPosition}
+      maxWidth={fullWidth ? "100%" : 1200}
       printParams={printParams}
       toolbar={
         <>
@@ -1502,6 +1506,10 @@ export default function CapabilityMapReport() {
             collapsed={displayOptionsCollapsed}
             onToggle={() => setDisplayOptionsCollapsed((v) => !v)}
           >
+            <FormControlLabel
+              control={<Switch size="small" checked={fullWidth} onChange={(_, v) => setFullWidth(v)} />}
+              label={<Typography variant="body2" color="text.secondary">Full width</Typography>}
+            />
             <FormControlLabel
               control={
                 <Switch
