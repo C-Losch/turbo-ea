@@ -1500,6 +1500,28 @@ export default function CapabilityMapReport() {
 
 
 
+          {/* Keep Show applications with the main map controls. */}
+          <FormControlLabel
+            control={<Switch size="small" checked={showApps} onChange={(_, v) => setShowApps(v)} />}
+            label={<Typography variant="body2" color="text.secondary">{t("capabilityMap.showApplications")}</Typography>}
+          />
+          {showApps && (
+            <TextField
+              select
+              size="small"
+              label={t("capabilityMap.colorAppsBy")}
+              value={colorKey}
+              onChange={(e) => setColorBy(e.target.value)}
+              slotProps={{ select: { displayEmpty: true } }}
+              sx={{ minWidth: 180 }}
+            >
+              {colorByOptions.map((o) => (
+                <MenuItem key={o.key} value={o.key}>{o.label}</MenuItem>
+              ))}
+            </TextField>
+          )}
+
+
           {/* Display options occupies its own toolbar row. */}
           <Box sx={{ width: "100%", flexBasis: "100%" }}>
             <ReportFilterSection
@@ -1537,28 +1559,6 @@ export default function CapabilityMapReport() {
               </TextField>
             </ReportFilterSection>
           </Box>
-
-          {/* Keep Show applications with the main map controls. */}
-          <FormControlLabel
-            control={<Switch size="small" checked={showApps} onChange={(_, v) => setShowApps(v)} />}
-            label={<Typography variant="body2" color="text.secondary">{t("capabilityMap.showApplications")}</Typography>}
-          />
-          {showApps && (
-            <TextField
-              select
-              size="small"
-              label={t("capabilityMap.colorAppsBy")}
-              value={colorKey}
-              onChange={(e) => setColorBy(e.target.value)}
-              slotProps={{ select: { displayEmpty: true } }}
-              sx={{ minWidth: 180 }}
-            >
-              {colorByOptions.map((o) => (
-                <MenuItem key={o.key} value={o.key}>{o.label}</MenuItem>
-              ))}
-            </TextField>
-          )}
-
 
 
           {/* Timeline slider */}
