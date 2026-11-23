@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { alpha, lighten } from "@mui/material/styles";
+import { alpha, getContrastRatio, lighten } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -52,7 +52,7 @@ import {
 } from "./portfolioInventoryLink";
 import { api, isAbortError } from "@/api/client";
 import { useAbortableEffect } from "@/hooks/useLatestRequest";
-import { contrastRatio, readableTextColor } from "@/lib/color";
+import { readableTextColor } from "@/lib/color";
 import {
   MULTIPLE_KEY,
   facetBucket,
@@ -642,8 +642,10 @@ function CapabilityCard({
       : lighten(inheritedColor, Math.min(0.72, Math.max(0.12, (depth - inheritedColorDepth) * 0.16)))
     : undefined;
   const effectiveHeadingColor = cardFillColor || heatColor(val, minVal, maxVal, metric);
+  // MUI lighten() can return rgb(...) strings, so use MUI's
+  // colour parser here rather than the hex-only shared contrast helper.
   const headingTextColor =
-    contrastRatio(effectiveHeadingColor, "#ffffff") >= contrastRatio(effectiveHeadingColor, "#000000")
+    getContrastRatio(effectiveHeadingColor, "#ffffff") >= getContrastRatio(effectiveHeadingColor, "#000000")
       ? "common.white"
       : SCREEN_INK.onLightFill;
   const boxPulse = pulsedCaps.get(node.id);
