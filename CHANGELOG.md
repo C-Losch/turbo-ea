@@ -5,6 +5,51 @@ All notable changes to Turbo EA are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.210.0] - 2026-11-22
+
+### Added
+- An extension page can open a card in the side panel directly on the field, section or relation group to fill, as the data-quality score already does on the card page (UI SDK 1.37).
+
+## [2.209.0] - 2026-11-22
+
+### Added
+- A change an extension makes for a signed-in person can be recorded under that person's name, so the card history shows who applied it; changes an extension makes on its own keep showing System.
+
+### Security
+- Rolling back a change set that has no author, such as one an extension made, now needs the audit-log permission, as reading it already did.
+
+## [2.208.1] - 2026-11-21
+
+### Fixed
+- Going back from the EA Delivery tab to the Portfolio tab on the PPM page left the page link pointing at EA Delivery, so a reload or a shared link opened the wrong tab.
+
+## [2.208.0] - 2026-11-21
+
+### Added
+- A **Filters** section on the PPM portfolio narrows the board by related cards (with their sub-cards), tags and the initiatives' own fields; it starts folded, and the active filters are kept in the page link and listed in print and export headers.
+- The PPM portfolio now remembers its search, grouping, subtype, hierarchy and filters between visits, like the reports, and offers a Reset button to return to the defaults.
+
+### Changed
+- The PPM portfolio's tiles (initiatives, budget, schedule health) now follow the search, the subtype pick and the filters, on public portfolio portals too, so a portal set to a default subtype opens with the tiles for that subtype.
+
+## [2.207.1] - 2026-11-20
+
+### Fixed
+- Fields and subtypes an extension adds to a card type are no longer lost when that card type is saved in the metamodel editor or overwritten by a workspace import, and are restored automatically at startup if they were.
+
+## [2.207.0] - 2026-11-20
+
+### Added
+- AI assistants connected through the MCP server can use the operations of installed, licensed extensions (`list_extension_tools`, `call_extension_read`, `call_extension_write`), within the user's permissions. Extension configuration is not exposed.
+- MCP tools to create tags and tag groups (`create_tag_groups`) and to add, remove or replace the tags on cards (`set_card_tags`).
+- A clear button on each section of the grid filter panels.
+- The query strip above the Inventory can be folded.
+
+### Fixed
+- Fields an extension adds to card types could still be edited while that extension was disabled or unlicensed; they are now read-only until it is active again.
+- A query view with several lines no longer squeezes the Inventory grid to a single row.
+- Creating a tag group or tag through the API with an unknown group, mode or card type now returns 404 / 422 instead of a server error.
+
 ## [2.206.0] - 2026-11-19
 
 ### Security

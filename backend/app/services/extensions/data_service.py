@@ -39,8 +39,8 @@ import logging
 import time
 import uuid
 from collections import deque
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, TypeVar
@@ -153,6 +153,81 @@ def active_batch_id() -> uuid.UUID | None:
     return active.id if active is not None else None
 
 
+@dataclass(frozen=True)
+class ActingPerson:
+    """The signed-in person an ``on_behalf_of`` scope names (SDK 1.19).
+
+    A snapshot of two columns, not the ORM row: the bridges write in sessions
+    of their own, and a row from the request's session must never be
+    lazy-loaded from one of them.
+    """
+
+    id: uuid.UUID
+    display_name: str
+
+
+# Task-local like the batch scope: a route serving one person and a job
+# running for nobody may share the one memoized context concurrently.
+_acting_person: ContextVar[ActingPerson | None] = ContextVar("ext_acting_person", default=None)
+
+
+def acting_person() -> ActingPerson | None:
+    """The person the current task's bridge writes are made for, if any."""
+    return _acting_person.get()
+
+
+def acting_person_id() -> uuid.UUID | None:
+    """:func:`acting_person`'s id — what a bridge passes where it passed
+    ``actor_id=None`` / ``created_by=None`` before SDK 1.19."""
+    person = _acting_person.get()
+    return person.id if person is not None else None
+
+
+@contextmanager
+def on_behalf_of(user: Any) -> Iterator[None]:
+    """``ctx.on_behalf_of(user)`` (SDK 1.19): record the bridge writes made
+    inside as made for this signed-in person.
+
+    ``user`` is the object an extension route's ``get_current_user``
+    dependency returned — an active core user. Anything else (an id string, a
+    dict, a deactivated user, ``None``) is refused with
+    :class:`ExtensionDataError` before anything is set.
+
+    Inside the scope a card, relation, tag or stakeholder write, a risk, a
+    decision draft and a survey name the person as their author: the card's
+    History tab shows their name, ``updated_by`` / ``created_by`` is theirs.
+    The extension stays on the record too — events keep ``data["ext"]``,
+    origin ``"ext"`` and the ``ext:{key}`` mutation batch — so the
+    extension's own event handlers still filter its writes out. Not covered:
+    todos (a person-created todo would count as theirs to edit and lose its
+    extension origin), notifications (no actor by design) and the audit
+    batch itself (it keeps no actor; the events inside it name the person).
+
+    Synchronous on purpose — ``with ctx.on_behalf_of(user): await ...`` —
+    and backed by a ``ContextVar``: an inner scope replaces the outer one
+    until it exits, the outer person is back afterwards, and the value is
+    reset on exit even when the body raises. A task spawned inside the scope
+    inherits it (``asyncio`` copies the context at task creation). Needs no
+    manifest grant: it opens no data domain, it only names who asked.
+    """
+    token = _acting_person.set(_validated_person(user))
+    try:
+        yield
+    finally:
+        _acting_person.reset(token)
+
+
+def _validated_person(user: Any) -> ActingPerson:
+    if not isinstance(user, User):
+        raise ExtensionDataError(
+            "on_behalf_of() takes the signed-in user an extension route received from "
+            f"get_current_user, not {type(user).__name__}"
+        )
+    if not user.is_active:
+        raise ExtensionDataError(f"User {user.id} is deactivated; no write can be made for them")
+    return ActingPerson(id=user.id, display_name=user.display_name)
+
+
 def count_write_in_active_batch() -> None:
     """Charge one write against the open batch's per-batch cap."""
     active = _active_batch.get()
@@ -164,6 +239,19 @@ def count_write_in_active_batch() -> None:
             f"Batch {active.label!r} exceeded the per-batch write cap "
             f"({settings.EXTENSION_MAX_WRITES_PER_BATCH})"
         )
+
+
+def http_detail_text(detail: object) -> str:
+    """The human sentence of an ``HTTPException`` detail.
+
+    Core's structured refusals (``{"error", "message", ...}`` — a locked
+    extension field, a required field emptied, a sibling-name clash) carry
+    their text in ``message``; ``str()`` of the dict would hand the extension a
+    Python repr instead.
+    """
+    if isinstance(detail, dict) and detail.get("message"):
+        return str(detail["message"])
+    return str(detail)
 
 
 def _parse_uuid(value: str, what: str) -> uuid.UUID:
@@ -329,7 +417,9 @@ async def open_batch(key: str, label: str) -> AsyncIterator[ExtBatch]:
     if _active_batch.get() is not None:
         raise ExtensionDataError("Extension write batches cannot nest")
     _count_batch_against_rate(key)
+    inbound_batch_id = request_batch_id.get()
     async with async_session() as db:
+        via_batch_id = await _existing_batch_id(db, inbound_batch_id)
         batch = await mutation_batch_service.create_batch(
             db,
             tool_name=f"ext:{key}"[:100],
@@ -350,7 +440,7 @@ async def open_batch(key: str, label: str) -> AsyncIterator[ExtBatch]:
                 row = await db.get(MutationBatch, batch_id)
                 if row is not None:
                     await mutation_batch_service.commit_batch(
-                        db, row, summary={"label": label, "writes": state.writes}
+                        db, row, summary=batch_summary(label, state.writes, via_batch_id)
                     )
                     await db.commit()
     finally:
@@ -359,6 +449,51 @@ async def open_batch(key: str, label: str) -> AsyncIterator[ExtBatch]:
         _active_batch.reset(active_token)
         if state.writes == 0:
             await _drop_empty_batch(key, batch_id)
+
+
+async def _existing_batch_id(db: AsyncSession, batch_id: uuid.UUID | None) -> str | None:
+    """``batch_id`` as a string when it names a stored mutation batch, else None.
+
+    The inbound id comes from the ``X-Turbo-EA-Batch`` header (an MCP call
+    opened that batch and is calling an extension route inside it); it is
+    only a parsed UUID, so it is recorded only once it is known to exist.
+    """
+    if batch_id is None:
+        return None
+    row = await db.get(MutationBatch, batch_id)
+    return str(batch_id) if row is not None else None
+
+
+def batch_summary(label: str, writes: int, via_batch_id: str | None) -> dict[str, Any]:
+    """The committed ``ext:{key}`` batch's summary.
+
+    ``via_batch_id`` names the batch of the request the extension was serving
+    when it wrote — an MCP tool call into one of its routes (SDK 1.18) — so
+    the extension's bridge writes stay traceable to that call in the Audit
+    Log. Absent when the writes came from a job or an event handler.
+    """
+    summary: dict[str, Any] = {"label": label, "writes": writes}
+    if via_batch_id is not None:
+        summary["via_batch_id"] = via_batch_id
+    return summary
+
+
+async def single_op_summary(
+    db: AsyncSession, inbound_batch_id: uuid.UUID | None, summary: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """The summary an implicit single-op ``ext:{key}`` batch commits with.
+
+    Every write bridge opens one when no ``batch()`` scope is open. Like
+    :func:`open_batch`, it names the batch of the request the extension was
+    serving as ``via_batch_id`` — but only when ``inbound_batch_id`` (read
+    before the bridge set its own batch on the contextvar) names a stored
+    batch. Otherwise ``summary`` is returned untouched (``None`` keeps the
+    batch's own summary).
+    """
+    via_batch_id = await _existing_batch_id(db, inbound_batch_id)
+    if via_batch_id is None:
+        return summary
+    return {**(summary or {}), "via_batch_id": via_batch_id}
 
 
 async def _drop_empty_batch(key: str, batch_id: uuid.UUID) -> None:
@@ -727,6 +862,13 @@ class ExtensionData:
     def _actor(self) -> WriteActor:
         info = extension_registry.get(self._key)
         display = (info.name if info else None) or self._key
+        person = _acting_person.get()
+        if person is not None:
+            # SDK 1.19 — made for a signed-in person: they are the author,
+            # and ext_key keeps the extension on the event (data["ext"]).
+            return WriteActor(
+                user_id=person.id, display_name=person.display_name, ext_key=self._key
+            )
         return WriteActor(user_id=None, display_name=display, ext_key=self._key)
 
     def _require_writes_enabled(self) -> None:
@@ -791,7 +933,7 @@ class ExtensionData:
                 try:
                     result = await op(db)
                 except HTTPException as e:
-                    raise ExtensionDataError(str(e.detail)) from e
+                    raise ExtensionDataError(http_detail_text(e.detail)) from e
                 finally:
                     if sp.is_active:
                         await sp.rollback()
@@ -805,12 +947,13 @@ class ExtensionData:
                 try:
                     result = await op(db)
                 except HTTPException as e:
-                    raise ExtensionDataError(str(e.detail)) from e
+                    raise ExtensionDataError(http_detail_text(e.detail)) from e
                 await db.commit()
                 return result
 
         # Implicit single-op batch (todos-bridge shape).
         self._count_batch_against_rate()
+        inbound_batch_id = request_batch_id.get()
         origin_token = request_origin.set("ext")
         batch_token = None
         try:
@@ -826,8 +969,10 @@ class ExtensionData:
                 try:
                     result = await op(db)
                 except HTTPException as e:
-                    raise ExtensionDataError(str(e.detail)) from e
-                await mutation_batch_service.commit_batch(db, batch)
+                    raise ExtensionDataError(http_detail_text(e.detail)) from e
+                await mutation_batch_service.commit_batch(
+                    db, batch, summary=await single_op_summary(db, inbound_batch_id, None)
+                )
                 await db.commit()
                 return result
         finally:
@@ -1035,8 +1180,9 @@ class ExtensionData:
                     card,
                     wanted,
                     mode=mode,  # type: ignore[arg-type]
-                    actor_id=None,
+                    actor_id=acting_person_id(),
                     event_extra={"ext": self._key},
+                    dry_run=dry_run,
                 )
             except tag_service.TagWriteError as e:
                 raise ExtensionDataError(str(e)) from e
@@ -1086,7 +1232,7 @@ class ExtensionData:
                 row,
                 role_label=labels[role_key],
                 user_display_name=user.display_name,
-                actor_id=None,
+                actor_id=acting_person_id(),
                 extra={"ext": self._key},
             )
             await stakeholder_service.rescore_after_stakeholder_change(db, cid)
@@ -1113,7 +1259,7 @@ class ExtensionData:
                 row,
                 role_label=labels.get(role_key, role_key),
                 user_display_name=user.display_name if user else None,
-                actor_id=None,
+                actor_id=acting_person_id(),
                 extra={"ext": self._key},
             )
             await db.delete(row)
