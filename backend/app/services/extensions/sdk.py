@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Sequence
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
@@ -310,7 +310,39 @@ async def require_card_permission(
 #   ``status`` keeps its three values. ``create_draft(related_decisions=)``
 #   is unchanged; its entries are now stored as ``relates`` links.
 
-SDK_VERSION = "1.17"
+# 1.18: agent tools. An extension may offer some of its OWN routes to AI
+#   assistants through the core MCP server: the optional ``get_agent_tools()``
+#   hook (duck-typed like ``get_event_handlers``, so older extensions load
+#   untouched) returns :class:`AgentTool` rows, unlocked by the manifest grant
+#   ``core.agent.tools``. Each row names a route on the extension's mounted
+#   router; core checks it against that router at startup and drops (and
+#   logs) any declaration it cannot vouch for — a configuration path, an
+#   ``ext.{key}.admin`` permission, a file download, a route that does not
+#   exist. ``GET /extensions/agent-tools`` lists the live tools filtered by the
+#   caller's permissions; the MCP server then calls the route itself with the
+#   user's token, so ``require_extension`` (installed, enabled, licensed) and
+#   the route's own permission check stay the authority.
+
+# 1.19: ``ctx.on_behalf_of(user)`` — a write an extension makes FOR a signed-in
+#   person is recorded under that person's name. Opt-in and synchronous:
+#   ``with ctx.on_behalf_of(user): await ctx.data.update_card(...)``, where
+#   ``user`` is what the route's ``get_current_user`` dependency returned (an
+#   active core user — an id, a dict, a deactivated user or ``None`` is refused
+#   with ``ExtensionDataError``). Inside the scope the data bridge (cards,
+#   relations, tags, stakeholders, archive), the risks bridge, the decisions
+#   bridge (``create_draft``'s author) and the surveys bridge name the person
+#   as actor / author; the extension stays on the record too (``data["ext"]``,
+#   origin ``ext``, the ``ext:{key}`` batch), so the own-write event filter is
+#   unchanged. NOT covered: todos (``created_by`` would make the todo the
+#   person's to edit and drop its extension origin), notifications (no actor
+#   by design) and the audit batch's own actor (it stays empty; the events in
+#   it name the person). Writes outside a scope — jobs, syncs, event handlers —
+#   are recorded exactly as before. Backed by a ContextVar: reset on exit (on
+#   an exception too), an inner scope replaces the outer one for its duration,
+#   and a task spawned inside inherits it. UNGATED, like the per-card
+#   permission helpers: it opens no data domain, it names who asked.
+
+SDK_VERSION = "1.19"
 
 
 @dataclass(frozen=True)
@@ -983,7 +1015,9 @@ class ExtensionContext:
     any extension holding a write grant; a scope that wrote nothing leaves
     no row. SDK 1.14 adds ``surveys`` — send a data-maintenance survey to
     the stakeholders of a set of cards (grants ``core.surveys.read`` /
-    ``core.surveys.write``; send only).
+    ``core.surveys.write``; send only). SDK 1.19 adds ``on_behalf_of`` —
+    ``with ctx.on_behalf_of(user):`` records the bridge writes made inside as
+    made for that signed-in person (no grant; see the 1.19 note above).
     """
 
     key: str
@@ -1004,6 +1038,7 @@ class ExtensionContext:
     notify: NotifyBridge | None = None
     batch: Callable[[str], AbstractAsyncContextManager[ExtBatch]] | None = None
     surveys: SurveysBridge | None = None
+    on_behalf_of: Callable[[Any], AbstractContextManager[None]] | None = None
 
     def __post_init__(self) -> None:
         if not self.settings_namespace:
@@ -1100,6 +1135,64 @@ class SupportsNotificationChannels(Protocol):
     ``getattr``, so extensions without it keep loading."""
 
     def get_notification_channels(self) -> list[NotificationChannel]: ...
+
+
+AGENT_TOOL_KINDS = ("read", "write", "destructive")
+
+
+@dataclass(frozen=True)
+class AgentTool:
+    """One operation an extension offers to AI assistants (SDK 1.18).
+
+    It names a route on the extension's own router — ``path`` relative to it,
+    exactly as declared there (``"/scenarios/{scenario_id}"``) — and is offered
+    through the core MCP server only while the extension is enabled, licensed
+    and declares the ``core.agent.tools`` grant, and only to people holding
+    ``permission``. The MCP server calls the route with the person's own
+    token: this row describes an operation, it confers no authority.
+
+    - ``name``: ``^[a-z][a-z0-9_]{0,62}$``, unique within the extension.
+    - ``method``: the HTTP method of the route (``GET``, ``POST``, …).
+    - ``permission``: an ``ext.{key}.*`` key (never ``ext.{key}.admin``) or a
+      core permission key — the one the route itself checks.
+    - ``kind``: ``read`` (GET or POST, changes nothing), ``write`` or
+      ``destructive`` (removes or overwrites; refused by the MCP server unless
+      the operator opts in).
+    - ``input_schema``: a JSON-schema object for the arguments. Derived from
+      the route's pydantic body model when omitted; required when the route
+      takes a bare ``dict`` body.
+    - ``path_params``: must equal the route's path parameters.
+    - ``query_params``: arguments sent in the query string (everything else
+      goes in the JSON body; on a GET or DELETE everything is a query
+      parameter, so such a route takes no body).
+    - ``supports_dry_run``: the route accepts ``dry_run: true`` in its body and
+      then validates without storing anything — the MCP preview forwards it.
+
+    Configuration routes (settings, credentials, connection tests, demo data)
+    and file downloads are never accepted.
+    """
+
+    name: str
+    title: str
+    description: str
+    method: str
+    path: str
+    permission: str
+    kind: str
+    input_schema: dict[str, Any] | None = None
+    path_params: tuple[str, ...] = ()
+    query_params: tuple[str, ...] = ()
+    supports_dry_run: bool = False
+
+
+class SupportsAgentTools(Protocol):
+    """Typing helper for extensions that implement the OPTIONAL
+    ``get_agent_tools`` hook (SDK 1.18). Deliberately not
+    ``runtime_checkable`` and deliberately not part of
+    :class:`TurboExtension` — the loader discovers the hook via ``getattr``,
+    so extensions without it keep loading."""
+
+    def get_agent_tools(self) -> list[AgentTool]: ...
 
 
 class SupportsEventHandlers(Protocol):

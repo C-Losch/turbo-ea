@@ -230,6 +230,15 @@ export interface FieldDef {
   // manifest on enable/update, so the admin UI shows their config/help
   // read-only ("Managed by <ext>") rather than offering edits that won't stick.
   ext?: string;
+  // Transient, set by `GET /metamodel/types` (never stored): the extension
+  // that contributed this field is not enabled or not licensed, so its values
+  // are shown but cannot be changed — the backend refuses a change with 403
+  // `extension_fields_locked`. Read it through `isWriteLockedField`.
+  ext_locked?: boolean;
+  // Transient, set by `GET /metamodel/types` (never stored): an ACTIVE
+  // (installed, enabled) extension contributed this field, so a card-type save
+  // cannot delete it and the editor offers no delete.
+  ext_protected?: boolean;
   // Set on built-in relation attribute "dimensions" (e.g. usageType,
   // flowDirection): the field definition is locked, but its options can be
   // managed. Custom relation dimensions are fully editable.
@@ -251,6 +260,11 @@ export interface SubtypeDef {
    * side neither blocks approval nor counts against data quality.
    */
   optional_relations?: string[];
+  // Stamped `<extension key>` on a subtype an extension manifest contributed.
+  ext?: string;
+  // Transient, set by `GET /metamodel/types` (never stored): an active
+  // extension contributed this subtype, so it cannot be deleted here.
+  ext_protected?: boolean;
 }
 
 export interface SectionDef {
@@ -264,6 +278,13 @@ export interface SectionDef {
   // name → { locale → label }. Display-only and ungated; any metamodel section
   // (core or extension) may supply it so group headers aren't English-only.
   groupTranslations?: Record<string, TranslationMap>;
+  // Stamped `<extension key>` on a section an extension manifest contributed
+  // (see backend field_contributions).
+  ext?: string;
+  // Transient, set by `GET /metamodel/types` (never stored): an ACTIVE
+  // extension contributed this section, so the type editor cannot delete it.
+  // A stamp alone (an uninstalled extension's leftover) does not protect.
+  ext_protected?: boolean;
 }
 
 export interface StakeholderRoleDefinition {
@@ -650,6 +671,23 @@ export interface DataQualityFactor {
   label?: string | null;
   /** Tag group: its name. */
   name?: string | null;
+}
+
+/**
+ * Where the card side panel opens a card (UI SDK 1.37): a field, a built-in
+ * section, or a relation group — the place a data-quality jump would land.
+ * Plain data, so an extension page can pass it to `sdk.CardDetailSidePanel`.
+ * When several are given, `field` wins, then `relation`, then `section`; one
+ * that does not resolve on the card's type opens the card as usual.
+ */
+export interface CardPanelFocus {
+  /** An attribute key of the card's type. */
+  field?: string;
+  section?: "description" | "lifecycle" | "tags" | "relations" | "hierarchy";
+  /** A relation type key, and the end this card is on. Without `side` the
+   * end is the one the card's type is on (`"source"` when it is on both); a
+   * `side` given must be an end the card's type is on. */
+  relation?: { type: string; side?: "source" | "target" };
 }
 
 /** Why a card scores what it scores, factor by factor (#1334). */

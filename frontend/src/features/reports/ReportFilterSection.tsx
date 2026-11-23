@@ -16,13 +16,17 @@ import { STATUS_COLORS } from "@/theme/tokens";
  * sub-sections on the Portfolio report — so it folds away, expanded by
  * default, with the collapse state persisted by the report alongside every
  * other setting (`filtersCollapsed` in its saved-report config).
+ * The one exception is a board whose content is the point: the PPM portfolio
+ * starts it folded by default and remembers the fold, with the rest of the
+ * board's state, in `turboea.ppm.portfolio.prefs` rather than a saved-report
+ * config, which the board does not have (UI_GUIDELINES §3.12).
  *
  * Extracted from the Portfolio and Capability Map reports, whose headers were
  * duplicated near-verbatim. It mirrors the vocabulary of the grid filter
  * sidebars' `FilterSectionHeader` (chevron -> section glyph -> label ->
  * primary count chip) rather than reusing it: that one is sidebar-typography,
- * has nowhere to put the clear-all chip, and is a bare `Box onClick` with no
- * button semantics.
+ * and its per-section clear is a small icon button, not the clear-all chip a
+ * report toolbar shows.
  *
  * Two structural rules that look like styling but are not:
  *  - `width: "100%"` on the wrapper is what keeps the block on its own line in
