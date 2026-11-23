@@ -40,7 +40,7 @@ export interface ReportShellProps {
   iconColor?: string;
   /** Filter toolbar rendered below title row */
   toolbar?: ReactNode;
-  /** Legend rendered in a fixed viewport panel at the selected edge */
+  /** Legend rendered as a sticky panel within the report area */
   legend?: ReactNode;
   legendPosition?: "bottom" | "top" | "left" | "right";
   /** Whether to show chart/table toggle (default true) */
