@@ -188,16 +188,21 @@ export default function ReportShell({
     <Box
       className="report-legend"
       sx={{
-        flex: sideLegend ? "0 0 176px" : "0 1 auto",
-        width: sideLegend ? 176 : "fit-content",
-        maxWidth: "100%",
-        minWidth: 0,
-        maxHeight: "none",
-        overflowX: sideLegend ? "hidden" : "visible",
-        overflowY: "visible",
+        flex: sideLegend ? "0 0 220px" : "0 1 auto",
+        width: sideLegend ? 220 : "fit-content",
+        maxWidth: sideLegend ? "min(28vw, 220px)" : "100%",
+        minWidth: sideLegend ? 180 : 0,
+        maxHeight: "calc(100vh - 112px)",
+        overflowX: "visible",
+        overflowY: "auto",
+        position: "sticky",
+        top: 96,
+        bottom: legendPosition === "bottom" ? 16 : "auto",
+        alignSelf: legendPosition === "bottom" ? "flex-end" : "flex-start",
+        zIndex: 2,
         display: "flex",
         flexDirection: sideLegend ? "column" : "row",
-        alignItems: sideLegend ? "stretch" : "center",
+        alignItems: sideLegend ? "flex-start" : "center",
         justifyContent: "center",
         gap: 1.5,
         flexWrap: "wrap",
@@ -210,12 +215,12 @@ export default function ReportShell({
         bgcolor: "background.paper",
         boxShadow: 2,
         "& > .MuiBox-root": {
-          width: "100%",
+          width: sideLegend ? "100%" : "auto",
           minWidth: 0,
           maxWidth: "100%",
           flexWrap: "wrap",
           flexDirection: sideLegend ? "column" : "row",
-          alignItems: sideLegend ? "stretch" : "center",
+          alignItems: sideLegend ? "flex-start" : "center",
         },
         "@media print": {
           maxWidth: "none",
@@ -420,10 +425,10 @@ export default function ReportShell({
         </Box>
       )}
 
-      {/* Keep the legend in the report flow, never fixed over application navigation. */}
+      {/* Sticky legends remain within the report scroll flow and clear the application header. */}
       {legendPosition === "top" && legendElement}
       {sideLegend ? (
-        <Box sx={{ display: "flex", flexDirection: legendPosition === "left" ? "row" : "row-reverse", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: legendPosition === "left" ? "row" : "row-reverse", alignItems: "stretch", gap: 2, minWidth: 0, position: "relative" }}>
           {legendElement}
           <Box ref={chartRef} className="report-chart-area" sx={{ minHeight: 300, minWidth: 0, flex: 1 }}>{children}</Box>
         </Box>
