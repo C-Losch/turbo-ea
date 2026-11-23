@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { alpha } from "@mui/material/styles";
+import { alpha, lighten } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -589,6 +589,8 @@ function CapabilityCard({
   pulsing,
   pulsedCaps,
   fillCardWithHeadingColor,
+  parentHeadingColor,
+  parentHeadingDepth,
   capabilityFieldsSchema,
 }: {
   node: CapNode;
@@ -615,6 +617,9 @@ function CapabilityCard({
    *  would read as a data change. */
   pulsedCaps: Map<string, ContainerPulseKind>;
   fillCardWithHeadingColor: boolean;
+  /** Nearest ancestor heading colour and its rendered depth. */
+  parentHeadingColor?: string | null;
+  parentHeadingDepth?: number;
   capabilityFieldsSchema: SectionDef[];
 }) {
   const { t } = useTranslation(["reports"]);
@@ -629,6 +634,13 @@ function CapabilityCard({
   );
 
   const headingColor = capabilityHeadingColor(node, capabilityFieldsSchema);
+  const inheritedColor = headingColor || parentHeadingColor || null;
+  const inheritedColorDepth = headingColor ? depth : (parentHeadingDepth ?? 0);
+  const cardFillColor = inheritedColor
+    ? headingColor
+      ? headingColor
+      : lighten(inheritedColor, Math.min(0.72, Math.max(0.12, (depth - inheritedColorDepth) * 0.16)))
+    : undefined;
   const headingTextColor = headingColor
     ? (readableTextColor(headingColor) === CHART_LABEL_ON_DARK ? "common.white" : SCREEN_INK.onLightFill)
     : undefined;
@@ -651,7 +663,7 @@ function CapabilityCard({
           borderColor: "divider",
           borderRadius: 2,
           overflow: "hidden",
-          bgcolor: fillCardWithHeadingColor && headingColor ? headingColor : "background.paper",
+          bgcolor: fillCardWithHeadingColor && cardFillColor ? cardFillColor : "background.paper",
           cursor: "pointer",
           transition: "box-shadow 0.2s",
           "&:hover": { boxShadow: 3 },
@@ -731,7 +743,7 @@ function CapabilityCard({
         borderColor: "divider",
         borderRadius: 2,
         overflow: "hidden",
-        bgcolor: fillCardWithHeadingColor && headingColor ? headingColor : "background.paper",
+        bgcolor: fillCardWithHeadingColor && cardFillColor ? cardFillColor : "background.paper",
         ...boxPulseSx,
       }}
     >
@@ -821,6 +833,8 @@ function CapabilityCard({
               pulsing={pulsing}
               pulsedCaps={pulsedCaps}
               fillCardWithHeadingColor={fillCardWithHeadingColor}
+              parentHeadingColor={inheritedColor}
+              parentHeadingDepth={inheritedColorDepth}
               capabilityFieldsSchema={capabilityFieldsSchema}
             />
           </Box>
@@ -878,6 +892,7 @@ export default function CapabilityMapReport() {
   const [colorBy, setColorBy] = useState("");
   const [fillCardWithHeadingColor, setFillCardWithHeadingColor] = useState(false);
   const [legendPosition, setLegendPosition] = useState<"bottom" | "top" | "left" | "right">("bottom");
+  const [displayOptionsCollapsed, setDisplayOptionsCollapsed] = useState(true);
   // Timeline slider
   const tl = useTimeline();
 
@@ -909,6 +924,7 @@ export default function CapabilityMapReport() {
       if (cfg.showApps != null) setShowApps(cfg.showApps as boolean);
       if (cfg.colorBy != null) setColorBy(cfg.colorBy as string);
       if (cfg.fillCardWithHeadingColor != null) setFillCardWithHeadingColor(!!cfg.fillCardWithHeadingColor);
+      if (cfg.displayOptionsCollapsed != null) setDisplayOptionsCollapsed(!!cfg.displayOptionsCollapsed);
       if (["bottom", "top", "left", "right"].includes(cfg.legendPosition as string)) setLegendPosition(cfg.legendPosition as "bottom" | "top" | "left" | "right");
       if (Array.isArray(cfg.scopeIds)) {
         setScopeIds((cfg.scopeIds as unknown[]).filter((v): v is string => typeof v === "string"));
@@ -931,12 +947,12 @@ export default function CapabilityMapReport() {
     }
   }, [saved.loadedConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
+  const getConfig = () => ({ metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, timelineDate: tl.persistValue, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed });
 
   // Auto-persist config to localStorage
   useEffect(() => {
     saved.persistConfig(getConfig());
-  }, [metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [metric, attribution, displayLevel, columns, showApps, colorBy, fillCardWithHeadingColor, legendPosition, displayOptionsCollapsed, tl.timelineDate, attrFilters, relationFilters, tagFilterIds, scopeIds, filtersCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset all parameters to defaults
   const handleReset = useCallback(() => {
@@ -949,6 +965,7 @@ export default function CapabilityMapReport() {
     setColorBy("");
     setFillCardWithHeadingColor(false);
     setLegendPosition("bottom");
+    setDisplayOptionsCollapsed(true);
     setScopeIds([]);
     tl.reset();
     setAttrFilters({});
@@ -956,6 +973,7 @@ export default function CapabilityMapReport() {
     setTagFilterIds([]);
     setShowAllRelFilters(false);
     setFiltersCollapsed(false);
+    setDisplayOptionsCollapsed(true);
   }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived: the facet fields (selects with options, booleans) — labels
@@ -1476,30 +1494,38 @@ export default function CapabilityMapReport() {
             initialOptions={scopeOptions}
           />
 
-<FormControlLabel
-            control={
-              <Switch
-                size="small"
-                checked={fillCardWithHeadingColor}
-                onChange={(_, v) => setFillCardWithHeadingColor(v)}
-              />
-            }
-            label={<Typography variant="body2" color="text.secondary">Fill card with heading colour</Typography>}
-          />
 
-          <TextField
-            select
-            size="small"
-            label="Legend position"
-            value={legendPosition}
-            onChange={(e) => setLegendPosition(e.target.value as "bottom" | "top" | "left" | "right")}
-            sx={{ minWidth: 140 }}
+
+          <ReportFilterSection
+            label="Display options"
+            icon="tune"
+            collapsed={displayOptionsCollapsed}
+            onToggle={() => setDisplayOptionsCollapsed((v) => !v)}
           >
-            <MenuItem value="bottom">Bottom</MenuItem>
-            <MenuItem value="top">Top</MenuItem>
-            <MenuItem value="left">Left</MenuItem>
-            <MenuItem value="right">Right</MenuItem>
-          </TextField>
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={fillCardWithHeadingColor}
+                  onChange={(_, v) => setFillCardWithHeadingColor(v)}
+                />
+              }
+              label={<Typography variant="body2" color="text.secondary">Fill card with heading colour</Typography>}
+            />
+            <TextField
+              select
+              size="small"
+              label="Legend position"
+              value={legendPosition}
+              onChange={(e) => setLegendPosition(e.target.value as "bottom" | "top" | "left" | "right")}
+              sx={{ minWidth: 140 }}
+            >
+              <MenuItem value="bottom">Bottom</MenuItem>
+              <MenuItem value="top">Top</MenuItem>
+              <MenuItem value="left">Left</MenuItem>
+              <MenuItem value="right">Right</MenuItem>
+            </TextField>
+          </ReportFilterSection>
 
           <FormControlLabel
             control={
@@ -1714,25 +1740,35 @@ export default function CapabilityMapReport() {
       legend={
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
           {/* Heatmap gradient legend */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              {t("capabilityMap.low")}
-            </Typography>
-            <Box sx={{ display: "flex", height: 12 }}>
-              {[0, 0.25, 0.5, 0.75, 1].map((r) => (
-                <Box
-                  key={r}
-                  sx={{
-                    width: 28,
-                    height: 12,
-                    bgcolor: heatColor(minVal + r * (maxVal - minVal), minVal, maxVal, metric),
-                  }}
-                />
-              ))}
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              {t("capabilityMap.high")}
-            </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            {legendPosition === "left" || legendPosition === "right" ? (
+              <>
+                <Typography variant="caption" color="text.secondary">{t("capabilityMap.high")}</Typography>
+                <Box sx={{ display: "flex", flexDirection: "column-reverse", width: 12 }}>
+                  {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+                    <Box key={r} sx={{ width: 12, height: 18, bgcolor: heatColor(minVal + r * (maxVal - minVal), minVal, maxVal, metric) }} />
+                  ))}
+                </Box>
+                <Typography variant="caption" color="text.secondary">{t("capabilityMap.low")}</Typography>
+              </>
+            ) : (
+              <>
+                <Typography variant="caption" color="text.secondary">{t("capabilityMap.low")}</Typography>
+                <Box sx={{ display: "flex", height: 12 }}>
+                  {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+                    <Box key={r} sx={{ width: 28, height: 12, bgcolor: heatColor(minVal + r * (maxVal - minVal), minVal, maxVal, metric) }} />
+                  ))}
+                </Box>
+                <Typography variant="caption" color="text.secondary">{t("capabilityMap.high")}</Typography>
+              </>
+            )}
             <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
               {t("capabilityMap.max", { value: fmtVal(maxVal) })}
             </Typography>
@@ -1815,6 +1851,8 @@ export default function CapabilityMapReport() {
                 pulsing={pulsing}
                 pulsedCaps={pulsedCaps}
                 fillCardWithHeadingColor={fillCardWithHeadingColor}
+                parentHeadingColor={null}
+                parentHeadingDepth={0}
                 capabilityFieldsSchema={capabilityFieldsSchema}
               />
             </Box>
