@@ -1777,7 +1777,7 @@ export default function CapabilityMapReport() {
 
           {/* App color legend — dynamic from schema */}
           {showApps && colorLegend && colorLegend.length > 0 && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, ml: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row", alignItems: legendPosition === "left" || legendPosition === "right" ? "flex-start" : "center", gap: 1.5, ml: legendPosition === "left" || legendPosition === "right" ? 0 : 2, width: legendPosition === "left" || legendPosition === "right" ? "100%" : "auto" }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                 {colorByLabel}:
               </Typography>
