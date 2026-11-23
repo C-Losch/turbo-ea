@@ -183,6 +183,48 @@ export default function ReportShell({
     allows("xlsx") &&
     (!!buildExportData || (hasTableToggle && view === "table"));
   const showPptxItem = exportEnabled && allows("pptx") && (!hasTableToggle || view === "chart");
+  const sideLegend = legendPosition === "left" || legendPosition === "right";
+  const legendElement = legend ? (
+    <Box
+      className="report-legend"
+      sx={{
+        flex: sideLegend ? "0 0 220px" : "0 1 auto",
+        width: sideLegend ? 220 : "fit-content",
+        maxWidth: "100%",
+        minWidth: 0,
+        maxHeight: "none",
+        overflow: "visible",
+        display: "flex",
+        flexDirection: sideLegend ? "column" : "row",
+        alignItems: sideLegend ? "stretch" : "center",
+        justifyContent: "center",
+        gap: 1.5,
+        flexWrap: "wrap",
+        p: 1.5,
+        mb: legendPosition === "top" ? 2 : 0,
+        mt: legendPosition === "bottom" ? 2 : 0,
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 2,
+        bgcolor: "background.paper",
+        boxShadow: 2,
+        "& > .MuiBox-root": {
+          width: sideLegend ? "100%" : "auto",
+          minWidth: 0,
+          flexDirection: sideLegend ? "column" : "row",
+          alignItems: sideLegend ? "flex-start" : "center",
+        },
+        "@media print": {
+          maxWidth: "none",
+          overflow: "visible",
+          boxShadow: "none",
+          mt: 2,
+        },
+      }}
+    >
+      {legend}
+    </Box>
+  ) : null;
 
   return (
     // `data-theme-mode`: a dark-theme report prints the text set on the page
@@ -375,52 +417,17 @@ export default function ReportShell({
         </Box>
       )}
 
-      {/* Main content */}
-      <Box ref={chartRef} className="report-chart-area" sx={{ minHeight: 300 }}>{children}</Box>
-
-      {/* Legend */}
-      {legend && (
-        <Box
-          className="report-legend"
-          sx={{
-            position: "fixed",
-            zIndex: (theme) => theme.zIndex.appBar + 1,
-            ...(legendPosition === "bottom" && { bottom: 16, left: "50%", transform: "translateX(-50%)" }),
-            ...(legendPosition === "top" && { top: 16, left: "50%", transform: "translateX(-50%)" }),
-            ...(legendPosition === "left" && { left: 16, top: "50%", transform: "translateY(-50%)" }),
-            ...(legendPosition === "right" && { right: 16, top: "50%", transform: "translateY(-50%)" }),
-            display: "flex",
-            flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row",
-            alignItems: "center",
-            gap: 1.5,
-            flexWrap: "wrap",
-            maxWidth: legendPosition === "left" || legendPosition === "right" ? "min(88vw, 280px)" : "min(92vw, 900px)",
-            maxHeight: "80vh",
-            overflow: "auto",
-            p: 1.5,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 2,
-            bgcolor: "background.paper",
-            boxShadow: 6,
-            "& > .MuiBox-root": {
-              flexDirection: legendPosition === "left" || legendPosition === "right" ? "column" : "row",
-              alignItems: legendPosition === "left" || legendPosition === "right" ? "flex-start" : "center",
-            },
-            "@media print": {
-              position: "static",
-              transform: "none",
-              maxWidth: "none",
-              maxHeight: "none",
-              overflow: "visible",
-              boxShadow: "none",
-              mt: 2,
-            },
-          }}
-        >
-          {legend}
+      {/* Keep the legend in the report flow, never fixed over application navigation. */}
+      {legendPosition === "top" && legendElement}
+      {sideLegend ? (
+        <Box sx={{ display: "flex", flexDirection: legendPosition === "left" ? "row" : "row-reverse", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
+          {legendElement}
+          <Box ref={chartRef} className="report-chart-area" sx={{ minHeight: 300, minWidth: 0, flex: 1 }}>{children}</Box>
         </Box>
+      ) : (
+        <Box ref={chartRef} className="report-chart-area" sx={{ minHeight: 300 }}>{children}</Box>
       )}
+      {legendPosition === "bottom" && legendElement}
     </Box>
   );
 }
